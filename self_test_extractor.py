@@ -12,8 +12,8 @@ def extract_information(data):
         return
 
     # Getting the current date for naming
-    today = datetime.today().strftime('%m%d%y')
-    server_name = "CX_ST_" + today
+    today = datetime.today().strftime('%m%d')
+    server_name = "CXST" + today
 
     # Suction Check
     suction_total = len(json_data["suctionCheck"])
@@ -21,16 +21,41 @@ def extract_information(data):
     suction_result = f"- Suction {suction_success}/{suction_total}"
 
     # Calibration Check
+    # Calibration Check
     calibration_total = len(json_data["calibrationCheck"])
-    calibration_success = sum(1 for item in json_data["calibrationCheck"] if item["status"] == "CALIBRATED")
-    calibration_result = f"- Camera validation {calibration_success}/{calibration_total}"
+    calibration_success = 0
+    non_calibrated_cameras = []
+
+    for item in json_data["calibrationCheck"]:
+        if item["status"] == "CALIBRATED":
+            calibration_success += 1
+        else:
+            non_calibrated_cameras.append(item["cameraId"])
+
+    if non_calibrated_cameras:
+        non_calibrated_cameras_list = ", ".join(non_calibrated_cameras)
+        calibration_result = f"- Camera validation {calibration_success}/{calibration_total} ({non_calibrated_cameras_list})"
+    else:
+        calibration_result = f"- Camera validation {calibration_success}/{calibration_total}"
 
     # Force Compression Check
     force_check_total = sum(1 for item in json_data["forceCompressionCheck"] for status in ["idleStatus", "pressedStatus", "deeperStatus"])
     force_check_success = sum(1 for item in json_data["forceCompressionCheck"] 
                               for status in ["idleStatus", "pressedStatus", "deeperStatus"] 
                               if item[status] == "SUCCESS")
-    force_compression_result = f"- Force compression {force_check_success}/{force_check_total}"
+    
+    # Track statuses with "THRESHOLD_EXCEEDED"
+    threshold_exceeded_statuses = []
+    for item in json_data["forceCompressionCheck"]:
+        for status in ["idleStatus", "pressedStatus", "deeperStatus"]:
+            if item[status] == "THRESHOLD_EXCEEDED":
+                threshold_exceeded_statuses.append(status)
+
+    if threshold_exceeded_statuses:
+        exceeded_statuses_str = ", ".join(threshold_exceeded_statuses)
+        force_compression_result = f"- Force compression {force_check_success}/{force_check_total} ({exceeded_statuses_str})"
+    else:
+        force_compression_result = f"- Force compression {force_check_success}/{force_check_total}"
 
     # Robot Check
     robot_check_result = ""
@@ -51,7 +76,6 @@ def extract_information(data):
     else:
         failed_cameras_list = ", ".join(failed_cameras)
         brightness_result = f"- Brightness check {brightness_success}/{brightness_total} ({failed_cameras_list})"
-
 
     # Printing the results
     print(server_name)
