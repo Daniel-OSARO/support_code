@@ -1,0 +1,9 @@
+admin@cpg-ech02-1:~$ show_self_test_results
+Enter the actionID: d09ca540-2275-4cb1-bb84-51affc505ebd
+HTTP/1.1 200 OK
+content-type: application/json
+date: Tue, 13 Aug 2024 23:16:07 GMT
+x-envoy-upstream-service-time: 1
+grpc-status: 0
+content-length: 2826
+server: envoy
