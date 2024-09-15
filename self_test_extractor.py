@@ -88,10 +88,10 @@ def extract_information(data):
 
     # Extracting and rounding the unsealedKpa and sealedKpa for specific endEffector
     for item in json_data["suctionCheck"]:
-        if item["endEffector"] == "single_schmalz_18mm_FG18PVC-50N016":
+        if item["endEffector"] == "single_piab_30mm_BL30-3":
             unsealed_kpa = round(item["unsealedKpa"], 2)
             sealed_kpa = round(item["sealedKpa"], 2)
-            print(f"- 18mm cup : {unsealed_kpa} / {sealed_kpa}")
+            print(f"- 30mm cup : {unsealed_kpa} / {sealed_kpa}")
 
 if __name__ == "__main__":
     # Ask user to paste the script
