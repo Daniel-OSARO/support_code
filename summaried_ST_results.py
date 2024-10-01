@@ -5,7 +5,7 @@ import os
 def extract_information(data):
     # Update server_name format with the extracted server prefix
     today = datetime.today().strftime('%m%d')
-    server_name = f"C6{today}"
+    server_name = f"CXST{today}"
 
     # Suction Check
     suction_total = len(json_data["suctionCheck"])
