@@ -104,9 +104,11 @@ def get_video(nvrname, start_time, end_time, cell_number, vid_name=None):
                     file_size = int(response.headers.get('content-length', 0))
                     progress_bar = tqdm(total=file_size, unit='iB', unit_scale=True)
 
+                    download_path = "/Users/daniel/Downloads/"
                     #dav_file = unique_filename('output.dav')
                     file_start_time = start_time.replace("-", "_").replace(":", "_").replace(" ", "_")
-                    dav_file = unique_filename(f"Cell{cell_number}_{file_start_time}.dav")
+                    #dav_file = unique_filename(f"Cell{cell_number}_{file_start_time}.dav")
+                    dav_file = unique_filename(os.path.join(download_path, f"Cell{cell_number}_{file_start_time}.dav"))
 
                     print('Starting download')
                     with open(dav_file, 'wb') as out_file:
@@ -130,9 +132,11 @@ def get_video(nvrname, start_time, end_time, cell_number, vid_name=None):
                     input_file = dav_file
                     #output_file = unique_filename('output.mp4')
                     if vid_name != None:
-                        output_file = unique_filename(f"{vid_name}.mp4")
+                        #output_file = unique_filename(f"{vid_name}.mp4")
+                        output_file = unique_filename(os.path.join(download_path, f"{vid_name}.mp4"))
                     else:
-                        output_file = unique_filename(f"Cell{cell_number}_{file_start_time}.mp4")
+                        #output_file = unique_filename(f"Cell{cell_number}_{file_start_time}.mp4")
+                        output_file = unique_filename(os.path.join(download_path, f"Cell{cell_number}_{file_start_time}.mp4"))
 
                     # Subprocess command string, requires VLC installed.
                     #cmd = '/Applications/VLC.app/Contents/MacOS/VLC -I dummy -vvv {} --sout="#transcode{{vcodec=h264,vb=500,deinterlace}}:standard{{access=file,mux=mp4,dst={}}}" vlc://quit'.format(input_file, output_file)
