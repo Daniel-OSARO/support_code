@@ -76,9 +76,9 @@ def validate_times(start_time, end_time):
         print("Times are valid.")
 
 
-def get_video(nvrname, start_time, end_time, cell_number, vid_name=None):
+def get_video(nvrname, start_time, end_time, cell_number, channel_number, vid_name=None):
 
-    url = f"http://{nvrname}/cgi-bin/loadfile.cgi?action=startLoad&channel={cell_number}&startTime={start_time}&endTime={end_time}"
+    url = f"http://{nvrname}/cgi-bin/loadfile.cgi?action=startLoad&channel={channel_number}&startTime={start_time}&endTime={end_time}"
     #url = f"http://{nvrname}/cgi-bin/loadfile.cgi?action=startLoad&channel=15&startTime={start_time}&endTime={end_time}"
 
     username = "admin"
@@ -175,4 +175,4 @@ if __name__ == '__main__':
     validate_times(start_time, end_time)
     chunked_times = generate_time_ranges(start_time, end_time)
     for chunk in chunked_times:
-        get_video(nvrname, chunk['start_time'], chunk['end_time'], cell_number)
+        get_video(nvrname, chunk['start_time'], chunk['end_time'], cell_number, channel_number)
