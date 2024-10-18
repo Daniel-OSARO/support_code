@@ -104,7 +104,7 @@ def get_video(nvrname, start_time, end_time, cell_number, channel_number, vid_na
                     file_size = int(response.headers.get('content-length', 0))
                     progress_bar = tqdm(total=file_size, unit='iB', unit_scale=True)
 
-                    download_path = "/Users/daniel/Downloads/"
+                    download_path = "/Users/daniel/Screenshots"
                     #dav_file = unique_filename('output.dav')
                     file_start_time = start_time.replace("-", "_").replace(":", "_").replace(" ", "_")
                     #dav_file = unique_filename(f"Cell{cell_number}_{file_start_time}.dav")
@@ -167,8 +167,8 @@ def get_video(nvrname, start_time, end_time, cell_number, channel_number, vid_na
 if __name__ == '__main__':
     nvrname = "192.168.111.12:8010"
     channel_number = "1"
-    start_time = "2024-10-17 04:43:00"
-    end_time = "2024-10-17 04:44:00"
+    start_time = "2024-10-18 00:10:00"
+    end_time = "2024-10-18 00:12:00"
     cell_number = int(nvrname.split('.')[-1].split(':')[0])%10
     #cut this into 5 minute chunks so we don't get boned if we lose connection.
     #if the time is less than or = to 5 minutes we'll just return the original start & end times.
