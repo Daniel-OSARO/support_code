@@ -5,7 +5,7 @@ import os
 def extract_information(data):
     # Update server_name format with the extracted server prefix
     today = datetime.today().strftime('%m%d')
-    server_name = f"CXST{today}"
+    server_name = f"C1ST{today}"
 
     # Suction Check
     suction_total = len(json_data["suctionCheck"])
@@ -73,18 +73,20 @@ def extract_information(data):
     print("===== Summarized Results =====")
     print(server_name)
     print(suction_result)
+
+    for item in json_data["suctionCheck"]:
+        # Extract tool size from the endEffector name
+        tool_size = item["endEffector"].split('_')[2]
+        unsealed_kpa = round(item["unsealedKpa"], 2)
+        sealed_kpa = round(item["sealedKpa"], 2)
+        print(f"  * {tool_size} : {unsealed_kpa} / {sealed_kpa}")
+
     print(calibration_result)
     print(force_compression_result)
     if robot_check_result:
         print(robot_check_result)
     print(brightness_result)
-
-    # Extracting and rounding the unsealedKpa and sealedKpa for specific endEffector
-    for item in json_data["suctionCheck"]:
-        if item["endEffector"] == "single_piab_30mm_BL30-3":
-            unsealed_kpa = round(item["unsealedKpa"], 2)
-            sealed_kpa = round(item["sealedKpa"], 2)
-            print(f"- 30mm cup : {unsealed_kpa} / {sealed_kpa}")
+    
 
 if __name__ == "__main__":
     # Read the full results and extract only the JSON part

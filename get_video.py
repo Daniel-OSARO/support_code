@@ -107,8 +107,8 @@ def get_video(nvrname, start_time, end_time, cell_number, channel_number, vid_na
                     download_path = "/Users/daniel/Screenshots"
                     #dav_file = unique_filename('output.dav')
                     file_start_time = start_time.replace("-", "_").replace(":", "_").replace(" ", "_")
-                    #dav_file = unique_filename(f"Cell{cell_number}_{file_start_time}.dav")
-                    dav_file = unique_filename(os.path.join(download_path, f"Cell{cell_number}_{file_start_time}.dav"))
+                    dav_file = unique_filename(f"Cell{cell_number}_{channel_number}_{file_start_time}.dav")
+                    # dav_file = unique_filename(os.path.join(download_path, f"Cell{cell_number}_{channel_number}_{file_start_time}.dav"))
 
                     print('Starting download')
                     with open(dav_file, 'wb') as out_file:
@@ -132,11 +132,11 @@ def get_video(nvrname, start_time, end_time, cell_number, channel_number, vid_na
                     input_file = dav_file
                     #output_file = unique_filename('output.mp4')
                     if vid_name != None:
-                        #output_file = unique_filename(f"{vid_name}.mp4")
-                        output_file = unique_filename(os.path.join(download_path, f"{vid_name}.mp4"))
+                        output_file = unique_filename(f"{vid_name}.mp4")
+                        # output_file = unique_filename(os.path.join(download_path, f"{vid_name}.mp4"))
                     else:
-                        #output_file = unique_filename(f"Cell{cell_number}_{file_start_time}.mp4")
-                        output_file = unique_filename(os.path.join(download_path, f"Cell{cell_number}_{file_start_time}.mp4"))
+                        output_file = unique_filename(f"Cell{cell_number}_{channel_number}_{file_start_time}.mp4")
+                        # output_file = unique_filename(os.path.join(download_path, f"Cell{cell_number}_{channel_number}_{file_start_time}.mp4"))
 
                     # Subprocess command string, requires VLC installed.
                     #cmd = '/Applications/VLC.app/Contents/MacOS/VLC -I dummy -vvv {} --sout="#transcode{{vcodec=h264,vb=500,deinterlace}}:standard{{access=file,mux=mp4,dst={}}}" vlc://quit'.format(input_file, output_file)
@@ -150,6 +150,7 @@ def get_video(nvrname, start_time, end_time, cell_number, channel_number, vid_na
                     # Calculate and print conversion time
                     conversion_end_time = time.time()
                     print('Conversion finished. It took {:.2f} seconds.'.format(conversion_end_time - conversion_start_time))
+                    print(f"Store the video to {download_path}.")
                     os.remove(dav_file)
                     break #break out of retry loop on success
                 else:
@@ -165,10 +166,10 @@ def get_video(nvrname, start_time, end_time, cell_number, channel_number, vid_na
 
 
 if __name__ == '__main__':
-    nvrname = "192.168.111.12:8010"
-    channel_number = "1"
-    start_time = "2024-10-18 00:10:00"
-    end_time = "2024-10-18 00:12:00"
+    nvrname = "192.168.111.17:8010"
+    channel_number = "4"
+    start_time = "2024-11-13 05:14:00"
+    end_time = "2024-11-13 05:20:00"
     cell_number = int(nvrname.split('.')[-1].split(':')[0])%10
     #cut this into 5 minute chunks so we don't get boned if we lose connection.
     #if the time is less than or = to 5 minutes we'll just return the original start & end times.
