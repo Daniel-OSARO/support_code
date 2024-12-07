@@ -135,7 +135,7 @@ def get_video(nvrname, start_time, end_time, cell_number, channel_number, vid_na
                         output_file = unique_filename(f"{vid_name}.mp4")
                         # output_file = unique_filename(os.path.join(download_path, f"{vid_name}.mp4"))
                     else:
-                        output_file = unique_filename(f"Cell{cell_number}_{channel_number}_{file_start_time}.mp4")
+                        output_file = unique_filename(f"Cell{cell_number}_Cam{channel_number}_{file_start_time}.mp4")
                         # output_file = unique_filename(os.path.join(download_path, f"Cell{cell_number}_{channel_number}_{file_start_time}.mp4"))
 
                     # Subprocess command string, requires VLC installed.
@@ -167,9 +167,9 @@ def get_video(nvrname, start_time, end_time, cell_number, channel_number, vid_na
 
 if __name__ == '__main__':
     nvrname = "192.168.111.17:8010"
-    channel_number = "4"
-    start_time = "2024-11-13 05:14:00"
-    end_time = "2024-11-13 05:20:00"
+    channel_number = "2"
+    start_time = "2024-12-05 04:24:00"
+    end_time = "2024-12-05 04:27:20"
     cell_number = int(nvrname.split('.')[-1].split(':')[0])%10
     #cut this into 5 minute chunks so we don't get boned if we lose connection.
     #if the time is less than or = to 5 minutes we'll just return the original start & end times.
