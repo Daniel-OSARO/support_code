@@ -1,0 +1,135 @@
+Ok(Response {
+ metadata: MetadataMap {
+ headers: {
+} 
+},
+message: SelfTestStatusResponse {
+ status: Complete,
+message: "",
+suction_check: [
+SuctionCheckResult {
+ end_effector: "single_piab_30mm_BL30-3",
+status: Success,
+unsealed_kpa: 41.738255,
+sealed_kpa: 85.99309,
+blowoff_status: Success,
+blowoff_kpa: 58.25001 
+},
+SuctionCheckResult {
+ end_effector: "single_schmalz_18mm_FG18PVC-50N016",
+status: Success,
+unsealed_kpa: 76.23817,
+sealed_kpa: 85.80792,
+blowoff_status: Success,
+blowoff_kpa: 56.49999 
+},
+SuctionCheckResult {
+ end_effector: "single_schmalz_50mm_FSGC-50-NBR-55",
+status: Success,
+unsealed_kpa: 36.99125,
+sealed_kpa: 87.743744,
+blowoff_status: Success,
+blowoff_kpa: 54.91668 
+}
+],
+calibration_check: [
+CalibrationCheckResult {
+ camera_id: "fr_ovr_pick",
+end_effector: "single_piab_30mm_BL30-3",
+status: Calibrated,
+charuco_position_rmse: 0.8937065,
+camera_position_rmse: 1.4043337,
+camera_temperature: {
+"Asic Temp": 23.2,
+ "Projector Temp": 21.0
+},
+camera_fps: 15 
+},
+CalibrationCheckResult {
+ camera_id: "fr_mom_fl",
+end_effector: "single_piab_30mm_BL30-3",
+status: Calibrated,
+charuco_position_rmse: 0.31117326,
+camera_position_rmse: 0.86769634,
+camera_temperature: {
+"Asic Temp": 45.0,
+ "Projector Temp": 37.0
+},
+camera_fps: 15 
+},
+CalibrationCheckResult {
+ camera_id: "fr_mom_fr",
+end_effector: "single_piab_30mm_BL30-3",
+status: Calibrated,
+charuco_position_rmse: 0.51921064,
+camera_position_rmse: 1.2524416,
+camera_temperature: {
+"Asic Temp": 43.2,
+ "Projector Temp": 36.0
+},
+camera_fps: 15 
+},
+CalibrationCheckResult {
+ camera_id: "fr_mom_rl",
+end_effector: "single_piab_30mm_BL30-3",
+status: Calibrated,
+charuco_position_rmse: 0.3475511,
+camera_position_rmse: 0.9549333,
+camera_temperature: {
+"Projector Temp": 36.0,
+ "Asic Temp": 45.0
+},
+camera_fps: 14 
+},
+CalibrationCheckResult {
+ camera_id: "fr_ovr_place",
+end_effector: "single_piab_30mm_BL30-3",
+status: Calibrated,
+charuco_position_rmse: 0.61172533,
+camera_position_rmse: 0.807527,
+camera_temperature: {
+"Asic Temp": 22.2,
+ "Projector Temp": 20.0
+},
+camera_fps: 15 
+}
+],
+force_compression_check: [
+ForceCompressionCheckResult {
+ end_effector: "single_piab_30mm_BL30-3",
+idle_status: Success,
+idle_error_message: "",
+pressed_status: Success,
+pressed_error_message: "",
+deeper_status: Success,
+deeper_error_message: "",
+status: Unknown 
+}
+],
+tool_changer_check: [
+ToolChangerCheckResult {
+ status: Success,
+tool_change_errors_list: [
+] 
+}
+],
+robot_check: Some(RobotCheckResult {
+ status: Success,
+robot_check_error_message: [
+] 
+}),
+brightness_check: [
+BrightnessCheckResult {
+ camera_id: "fr_ovr_place",
+status: Success,
+found_luminance: 162.23843 
+},
+BrightnessCheckResult {
+ camera_id: "fr_ovr_pick",
+status: Success,
+found_luminance: 44.530342 
+}
+] 
+},
+extensions: Extensions 
+})
