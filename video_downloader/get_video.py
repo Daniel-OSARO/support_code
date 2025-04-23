@@ -5,6 +5,7 @@ import time
 from getpass import getpass
 from tqdm import tqdm
 from datetime import datetime, timedelta
+import urllib.parse
 
 
 def generate_time_ranges(start_time, end_time):
@@ -77,7 +78,11 @@ def validate_times(start_time, end_time):
 
 
 def get_video(nvrname, start_time, end_time, cell_number, channel_number, vid_name=None):
-    url = f"http://{nvrname}/cgi-bin/loadfile.cgi?action=startLoad&channel={channel_number}&startTime={start_time}&endTime={end_time}"
+    # URL 인코딩 추가
+    encoded_start_time = urllib.parse.quote(start_time)
+    encoded_end_time = urllib.parse.quote(end_time)
+    
+    url = f"http://{nvrname}/cgi-bin/loadfile.cgi?action=startLoad&channel={channel_number}&startTime={encoded_start_time}&endTime={encoded_end_time}"
     username = "admin"
     password = "osaro51423"
     max_retries, delay = 5, 5
@@ -127,7 +132,7 @@ def get_video(nvrname, start_time, end_time, cell_number, channel_number, vid_na
                     os.remove(dav_file)
                     break
                 else:
-                    print(f"Error {response.status_code}")
+                    print(f"Error {response.status_code}: {response.text}")
                     break
         except Exception as e:
             print(f"An error occurred: {e}")
@@ -139,10 +144,10 @@ def get_video(nvrname, start_time, end_time, cell_number, channel_number, vid_na
 
 
 if __name__ == '__main__':
-    nvrname = "192.168.111.16:8010"
+    nvrname = "192.168.111.14:8010"
     channel_number = "3"
-    start_time = "2025-03-27 01:13:00"
-    end_time = "2025-03-27 01:13:30"
+    start_time = "2025-03-26 18:30:36"
+    end_time = "2025-03-26 18:31:06"
     cell_number = int(nvrname.split('.')[-1].split(':')[0])%10
     # cell_number = "2"
     validate_times(start_time, end_time)
