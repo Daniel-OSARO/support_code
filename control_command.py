@@ -7,6 +7,8 @@ import time
 # export SUDO_PASSWORD="muchscarydontuse"
 
 def execute_ssh_command(host, username, password, command, sudo_password=None):
+    """Executes an SSH command and returns output, error, and exit status."""
+    client = None
     try:
         # print(f"[DEBUG] Connecting to {host}...")
         client = paramiko.SSHClient()
@@ -15,30 +17,28 @@ def execute_ssh_command(host, username, password, command, sudo_password=None):
 
         # print(f"[DEBUG] Executing command on {host}: {command}")
         if "sudo" in command and sudo_password:
-            command = f"echo {sudo_password} | {command}"
+            # Ensure sudo command structure is robust
+            command = f"echo '{sudo_password}' | sudo -S -p '' {command.replace('sudo ', '', 1)}" # More reliable sudo injection
 
-        stdin, stdout, stderr = client.exec_command(command, get_pty=True)
+        stdin, stdout, stderr = client.exec_command(command, get_pty=True) # get_pty can sometimes be needed for sudo
 
-        if sudo_password:
-            time.sleep(1)
-            stdin.write(f"{sudo_password}\n")
-            stdin.flush()
+        # Reading stdout and stderr before checking exit status
+        output = stdout.read().decode(errors='ignore').strip()
+        error = stderr.read().decode(errors='ignore').strip()
+        exit_status = stdout.channel.recv_exit_status() # Get exit status
 
-        output = stdout.read().decode().strip()
-        error = stderr.read().decode().strip()
-
-        client.close()
-
-        if error:
-            print(f"[ERROR] SSH command failed on {host}: {error}")
-            return None
-        
         # print(f"[DEBUG] Output from {host}: {output}")
-        return output
+        # print(f"[DEBUG] Error from {host}: {error}")
+        # print(f"[DEBUG] Exit status from {host}: {exit_status}")
+
+        return output, error, exit_status
 
     except Exception as e:
         print(f"[ERROR] SSH execution failed on {host}: {e}")
-        return None
+        return None, str(e), -1 # Return a consistent tuple format on failure
+    finally:
+        if client:
+            client.close()
 
 
 def get_target_servers(selection, servers):
@@ -51,27 +51,48 @@ def process_service(server, service, sudo_password, docker_restart_only=False):
     try:
         if not docker_restart_only:  # Run Salt update first
             print(f"[DEBUG] Processing salt update {service} on Cell{server['id']}")
+            # Ensure the command uses sudo correctly if needed
             salt_command = f"sudo salt-update {service} koji/cpg-ech02-1-7_onsite"
-            output = execute_ssh_command(server['host'], server['username'], server['password'], salt_command, sudo_password)
-            if output is None:
-                print(f"[ERROR] Salt update failed for {service} on {server['host']}")
-                return
+            salt_output, salt_error, salt_exit_status = execute_ssh_command(
+                server['host'], server['username'], server['password'], salt_command, sudo_password
+            )
 
-            failed_matches = re.findall(r'Failed:\s+(\d+)', output)
-            failed_count = sum(int(match) for match in failed_matches) if failed_matches else 0
-            if failed_count == 0:
-                print(f"✅ Salt update Success: Cell{server['id']}, Salt Update {service}")
+            # Check exit status first for success (0 means success)
+            if salt_exit_status == 0:
+                # Optionally check output for 'Failed: 0' for extra confirmation
+                failed_matches = re.findall(r'Failed:\s+(\d+)', salt_output)
+                failed_count = sum(int(match) for match in failed_matches) if failed_matches else 0
+                if failed_count == 0:
+                    print(f"✅ Salt update Success: Cell{server['id']}, Salt Update {service}")
+                else:
+                    # Exit status was 0, but output indicates failure? Log this inconsistency.
+                    print(f"⚠️ Salt update Warning: Cell{server['id']}, Salt Update {service} - Exit status 0 but output shows {failed_count} failures. Output: {salt_output[:100]}...")
             else:
-                print(f"❌ Salt update Failed: Cell{server['id']}, Salt Update {service}")
+                # Non-zero exit status indicates failure
+                error_details = salt_error if salt_error else salt_output # Show stderr if available, otherwise stdout
+                print(f"❌ Salt update Failed: Cell{server['id']}, Salt Update {service} (Exit: {salt_exit_status}). Error: {error_details[:150]}...")
+                return # Stop processing this service for this server if salt update failed
 
-        # Always restart Docker for the service
+        # Always restart Docker for the service (only if salt update succeeded or was skipped)
         print(f"[DEBUG] Processing docker restart {service} on Cell{server['id']}")
-        restart_command = f"docker restart {service}"
-        restart_output = execute_ssh_command(server['host'], server['username'], server['password'], restart_command, sudo_password)
-        if service in restart_output:
-            print(f"✅ Docker restart Success: Cell{server['id']}, Docker Restart {service}")
+        # Docker restart might not need sudo depending on setup, but let's assume it might
+        restart_command = f"sudo docker restart {service}"
+        restart_output, restart_error, restart_exit_status = execute_ssh_command(
+            server['host'], server['username'], server['password'], restart_command, sudo_password
+        )
+
+        # Check exit status for docker restart
+        if restart_exit_status == 0:
+             # Check if the output contains the service name as a confirmation
+             # This might be less reliable than checking the exit status
+            if service in restart_output or service in restart_error: # Sometimes confirmation is in stderr
+                 print(f"✅ Docker restart Success: Cell{server['id']}, Docker Restart {service}")
+            else:
+                 # Command succeeded (exit status 0) but output confirmation missing
+                 print(f"🤔 Docker restart Status Uncertain: Cell{server['id']}, Docker Restart {service}. Exit status 0, but confirmation string not found. Output: {restart_output[:100]}...")
         else:
-            print(f"❌ Docker restart Failed: Cell{server['id']}, Docker Restart {service}")
+            error_details = restart_error if restart_error else restart_output
+            print(f"❌ Docker restart Failed: Cell{server['id']}, Docker Restart {service} (Exit: {restart_exit_status}). Error: {error_details[:150]}...")
 
     except Exception as e:
         print(f"[ERROR] Error processing {service} on {server['host']}: {e}")
@@ -105,7 +126,8 @@ def execute_pnp_reset(server):
 
 def run_pnp_reset_parallel(target_servers):
     """Runs the PNP reset command in parallel on the target servers."""
-    with ThreadPoolExecutor() as executor:
+    # Limit concurrency for PNP reset as well, maybe less restrictive than salt
+    with ThreadPoolExecutor(max_workers=2) as executor: # Example: limit PNP reset concurrency too
         futures = [
             executor.submit(execute_pnp_reset, server)
             for server in target_servers
@@ -121,7 +143,8 @@ def run_pnp_reset_parallel(target_servers):
 
 
 def run_service_parallel(target_servers, services, sudo_password, docker_restart_only=False):
-    with ThreadPoolExecutor() as executor:
+    # Limit the number of concurrent workers to 2
+    with ThreadPoolExecutor(max_workers=2) as executor:
         futures = [
             executor.submit(process_services_for_server, server, services, sudo_password, docker_restart_only)
             for server in target_servers
