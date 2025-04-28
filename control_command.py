@@ -85,6 +85,41 @@ def process_services_for_server(server, services, sudo_password, docker_restart_
         print(f"[ERROR] Error processing services on {server['host']}: {e}")
 
 
+def execute_pnp_reset(server):
+    """Executes the PNP reset curl command on a given server."""
+    try:
+        print(f"[DEBUG] Processing PNP reset on Cell{server['id']}")
+        reset_command = "curl -i -X POST 'http://localhost:80/v1/pnp/reset'"
+        output = execute_ssh_command(server['host'], server['username'], server['password'], reset_command)
+
+        if output and "HTTP/1.1 200 OK" in output: # Check for a successful HTTP response
+            print(f"✅ PNP Reset Success: Cell{server['id']}")
+        elif output:
+            print(f"❌ PNP Reset Failed: Cell{server['id']}, Output: {output[:100]}...") # Print partial output on failure
+        else:
+            print(f"❌ PNP Reset Failed: Cell{server['id']} (No output or connection error)")
+
+    except Exception as e:
+        print(f"[ERROR] Error executing PNP reset on {server['host']}: {e}")
+
+
+def run_pnp_reset_parallel(target_servers):
+    """Runs the PNP reset command in parallel on the target servers."""
+    with ThreadPoolExecutor() as executor:
+        futures = [
+            executor.submit(execute_pnp_reset, server)
+            for server in target_servers
+        ]
+
+        for future in as_completed(futures):
+            try:
+                future.result() # Wait for completion and handle potential exceptions
+            except Exception as e:
+                # Exceptions from execute_pnp_reset are caught internally,
+                # but this catches potential ThreadPoolExecutor issues.
+                print(f"[ERROR] A task for PNP reset failed: {e}")
+
+
 def run_service_parallel(target_servers, services, sudo_password, docker_restart_only=False):
     with ThreadPoolExecutor() as executor:
         futures = [
@@ -125,34 +160,56 @@ def main():
         print("==========================")
         print("1. Salt update & Docker restart")
         print("2. Docker restart only")
+        print("3. Reset PNP")
         print("9. Exit")
         main_choice = input("Select an option: ")
         
         if main_choice == "9":
             break
         
-        print("\n------ Select Service Group ------")
-        for key, value in SERVICE_GROUPS.items():
-            print(f"{key}. {' '.join(value)}")
-        print("9. --Back--")
-        
-        while True:
-            sub_choice = input("Select a service group: ")
-            if sub_choice == "9":
+        if main_choice in ["1", "2"]:
+            print("\n------ Select Service Group ------")
+            for key, value in SERVICE_GROUPS.items():
+                print(f"{key}. {' '.join(value)}")
+            print("9. --Back--")
+            
+            while True:
+                sub_choice = input("Select a service group: ")
+                if sub_choice == "9":
+                    break
+                
+                services = SERVICE_GROUPS.get(sub_choice)
+                if not services:
+                    print("[ERROR] Invalid service group selection.")
+                    continue
+                
+                selected = input("Enter cell numbers to send command (e.g., 12347, 0 for all): ")
+                target_servers_for_service = get_target_servers(selected, servers)
+                if not target_servers_for_service:
+                    print("[ERROR] No target servers selected or invalid input.")
+                    continue
+                
+                if main_choice == "1":
+                    run_service_parallel(target_servers_for_service, services, sudo_password)
+                elif main_choice == "2":
+                    run_service_parallel(target_servers_for_service, services, sudo_password, docker_restart_only=True)
                 break
-            
-            services = SERVICE_GROUPS.get(sub_choice)
-            if not services:
+        
+        elif main_choice == "3":
+            print("\n------ Select Target Cells for PNP Reset ------")
+            selected = input("Enter cell numbers to reset PNP (e.g., 12347, 0 for all, 9 to go back): ")
+            if selected == '9':
                 continue
-            
-            selected = input("Enter cell numbers to send command (e.g., 12347, 0 for all): ")
-            target_servers = get_target_servers(selected, servers)
-            
-            if main_choice == "1":
-                run_service_parallel(target_servers, services, sudo_password)
-            elif main_choice == "2":
-                run_service_parallel(target_servers, services, sudo_password, docker_restart_only=True)
-            break
+
+            target_servers_for_reset = get_target_servers(selected, servers)
+            if not target_servers_for_reset:
+                print("[ERROR] No target servers selected or invalid input.")
+            else:
+                print(f"Executing PNP reset on cells: {[s['id'] for s in target_servers_for_reset]}")
+                run_pnp_reset_parallel(target_servers_for_reset)
+        
+        else:
+            print("[ERROR] Invalid option selected.")
 
 if __name__ == "__main__":
     main()
