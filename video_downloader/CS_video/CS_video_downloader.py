@@ -355,7 +355,7 @@ def menu1_download_dav():
             print_error("Invalid channel number")
     
     csv_file_path = os.path.join(os.path.dirname(__file__), csv_file)
-    folder_name = f"{os.path.splitext(os.path.basename(csv_file))[0]}"
+    folder_name = f"{os.path.splitext(os.path.basename(csv_file))[0]}_dav"
     failed_downloads_file = f"{folder_name}_failed_downloads.txt"
     
     # Clear previous failed downloads file if exists
@@ -708,7 +708,13 @@ def menu2_convert_to_mp4():
         return
     
     dav_folder_path = os.path.join(os.path.dirname(__file__), dav_folder)
-    mp4_folder = f"{dav_folder}_mp4"
+    
+    if dav_folder.endswith("_dav"):
+        base_folder_name = dav_folder[:-4] # Remove '_dav'
+        mp4_folder = f"{base_folder_name}_mp4"
+    else:
+        mp4_folder = f"{dav_folder}_mp4"
+
     mp4_folder_path = os.path.join(os.path.dirname(__file__), mp4_folder)
     create_folder(mp4_folder_path)
     
