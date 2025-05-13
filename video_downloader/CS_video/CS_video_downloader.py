@@ -342,7 +342,7 @@ def menu1_download_dav():
     # Channel selection
     while True:
         try:
-            channel = input(f"\n{Fore.CYAN}Select channel (1-4, default: 1): {Style.RESET_ALL}").strip()
+            channel = input(f"\n{Fore.CYAN}Select channel (1-4, default: 1)\n(Recommendation) Missing: 2, Wrong: 1 : {Style.RESET_ALL}").strip()
             if not channel:  # If empty input, use default
                 channel = 1
                 break
@@ -426,7 +426,7 @@ def menu2_download_dav_using_logs():
     # Channel selection (same as menu 1)
     while True:
         try:
-            channel = input(f"\n{Fore.CYAN}Select channel (1-4, default: 1): {Style.RESET_ALL}").strip()
+            channel = input(f"\n{Fore.CYAN}Select channel (1-4, default: 1)\n(Recommendation) Missing: 2, Wrong: 1 : {Style.RESET_ALL}").strip()
             if not channel:
                 channel = 1
                 break
