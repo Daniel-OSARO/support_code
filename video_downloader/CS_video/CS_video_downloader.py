@@ -400,7 +400,7 @@ def menu1_download_dav():
                 
                 short_shippedat = shippedat_obj.strftime('%Y%m%d_%H%M%S')
                 cell_info = f"cell{worker_id[-1]}" if worker_id.startswith("rw_136_robotagent") else ""
-                vid_name = f"{invoice_number}_{os.path.splitext(os.path.basename(csv_file))[0]}_{short_shippedat}_{cell_info}_ch{channel}".strip("_")
+                vid_name = f"{invoice_number}_{short_shippedat}_{cell_info}_ch{channel}".strip("_")
                 
                 nvr_address = get_nvr_address(worker_id)
                 if not nvr_address:
