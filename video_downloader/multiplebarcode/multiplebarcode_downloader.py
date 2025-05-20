@@ -58,8 +58,7 @@ def build_log_query_filter(start_time_str, end_time_str, hostnames, cell_numbers
     base_query = """
     jsonPayload.app_name="osaro-pnp"
     severity>="INFO"
-    --jsonPayload.fields.err:"MultipleValidBarcodes"
-    jsonPayload.fields.message:"barcode scan sender canceled, barcode unavailable for mass estimation"
+    jsonPayload.fields.err:"MultipleValidBarcodes"
     """
     
     # Add hostname and timestamp filters
@@ -262,7 +261,7 @@ def menu1_download_dav():
     # Get cell numbers from user
     while True:
         try:
-            cell_input_str = input(f"\n{Fore.CYAN}Enter cell numbers (e.g., 1,3,5 or 1356 for cells 1, 3, 5, 6): {Style.RESET_ALL}").strip()
+            cell_input_str = input(f"\n{Fore.CYAN}Enter cell numbers (e.g., 1,3,5 or 1356): {Style.RESET_ALL}").strip()
             if not cell_input_str: 
                 print_error("Cell numbers cannot be empty. Please try again.")
                 continue
