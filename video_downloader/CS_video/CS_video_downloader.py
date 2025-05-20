@@ -14,6 +14,7 @@ import colorama
 from colorama import Fore, Back, Style
 from google.cloud import logging as cloud_logging
 import json
+import re
 
 # Initialize colorama
 colorama.init()
@@ -355,7 +356,7 @@ def menu1_download_dav():
             print_error("Invalid channel number")
     
     csv_file_path = os.path.join(os.path.dirname(__file__), csv_file)
-    folder_name = f"{os.path.splitext(os.path.basename(csv_file))[0]}_dav"
+    folder_name = f"{os.path.splitext(os.path.basename(csv_file))[0]}_ch{channel}_dav"
     failed_downloads_file = f"{folder_name}_failed_downloads.txt"
     
     # Clear previous failed downloads file if exists
@@ -439,7 +440,7 @@ def menu2_download_dav_using_logs():
             print_error("Invalid channel number")
 
     csv_file_path = os.path.join(os.path.dirname(__file__), csv_file)
-    folder_name = f"{os.path.splitext(os.path.basename(csv_file))[0]}_log_time" # Distinguish folder
+    folder_name = f"{os.path.splitext(os.path.basename(csv_file))[0]}_log_time_ch{channel}" # Distinguish folder
     failed_downloads_file = f"{folder_name}_failed_downloads.txt"
     unfound_timestamps_file = f"{folder_name}_unfound_timestamps.txt" # File for unfound invoices
     project_id = "osaro-logging" # Assuming this project ID
@@ -713,7 +714,15 @@ def menu2_convert_to_mp4():
         base_folder_name = dav_folder[:-4] # Remove '_dav'
         mp4_folder = f"{base_folder_name}_mp4"
     else:
-        mp4_folder = f"{dav_folder}_mp4"
+        # Check if folder name contains "_ch" followed by a number
+        ch_match = re.search(r'_ch\d+', dav_folder)
+        if ch_match:
+            # Keep the channel info in the mp4 folder name
+            channel_part = ch_match.group(0)
+            base_name = dav_folder.replace(channel_part, '')
+            mp4_folder = f"{base_name}{channel_part}_mp4"
+        else:
+            mp4_folder = f"{dav_folder}_mp4"
 
     mp4_folder_path = os.path.join(os.path.dirname(__file__), mp4_folder)
     create_folder(mp4_folder_path)

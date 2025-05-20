@@ -38,7 +38,7 @@ def execute_ssh_command(host, username, password, command, sudo_password=None, s
 
             command = f"echo '{sudo_password}' | sudo -S -p '' {command.replace('sudo ', '', 1)}"
 
-        print(f"{server_color}[DEBUG] Executing command on {host}: {log_command}{RESET_COLOR}")
+        # print(f"{server_color}[DEBUG] Executing command on {host}: {log_command}{RESET_COLOR}")
         stdin, stdout, stderr = client.exec_command(command, get_pty=True) # get_pty can sometimes be needed for sudo
 
         # Reading stdout and stderr before checking exit status
@@ -143,10 +143,10 @@ def execute_pnp_reset(server):
         print(f"{server_color}[ERROR] Error executing PNP reset on {server['host']}: {e}{RESET_COLOR}")
 
 
-def run_pnp_reset_parallel(target_servers):
+def run_pnp_reset_parallel(target_servers, max_workers=2):
     """Runs the PNP reset command in parallel on the target servers."""
     # Limit concurrency for PNP reset as well, maybe less restrictive than salt
-    with ThreadPoolExecutor(max_workers=2) as executor: # Example: limit PNP reset concurrency too
+    with ThreadPoolExecutor(max_workers=max_workers) as executor: # Example: limit PNP reset concurrency too
         futures = [
             executor.submit(execute_pnp_reset, server)
             for server in target_servers
@@ -161,9 +161,9 @@ def run_pnp_reset_parallel(target_servers):
                 print(f"[ERROR] A task for PNP reset failed: {e}")
 
 
-def run_service_parallel(target_servers, services, sudo_password, docker_restart_only=False):
+def run_service_parallel(target_servers, services, sudo_password, docker_restart_only=False, max_workers=2):
     # Limit the number of concurrent workers to 3
-    with ThreadPoolExecutor(max_workers=2) as executor:
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = [
             executor.submit(process_services_for_server, server, services, sudo_password, docker_restart_only)
             for server in target_servers
@@ -181,6 +181,12 @@ def main():
         print('export SUDO_PASSWORD="your_password"')
         return
 
+    # --- User-configurable max_workers ---
+    MAX_WORKERS_SALT_UPDATE = 2
+    MAX_WORKERS_DOCKER_RESTART = 4
+    MAX_WORKERS_PNP_RESET = 4
+    # ------------------------------------
+
     servers = [
         {"id": i, "host": f"192.168.111.1{i}", "username": "admin", "password": os.getenv("SSH_PASSWORD"), "color": COLORS[(i-1) % len(COLORS)]}
         for i in range(1, 8)
@@ -193,7 +199,9 @@ def main():
         "4": ["vidarr"],
         "5": ["mimir"],
         "6": ["garmr"],
-        "7": ["mimir", "garmr"]
+        "7": ["mimir", "garmr"],
+        "8": ["pnp", "mimir", "garmr"],
+        "9": ["pnp", "vidarr", "mimir", "garmr"]
     }
     
     while True:
@@ -203,21 +211,21 @@ def main():
         print("1. Salt update & Docker restart")
         print("2. Docker restart only")
         print("3. Reset PNP")
-        print("9. Exit")
+        print("Q. Exit")
         main_choice = input("Select an option: ")
         
-        if main_choice == "9":
+        if main_choice == "q":
             break
         
         if main_choice in ["1", "2"]:
             print("\n------ Select Service Group ------")
             for key, value in SERVICE_GROUPS.items():
                 print(f"{key}. {' '.join(value)}")
-            print("9. --Back--")
+            print("Q. --Back--")
             
             while True:
                 sub_choice = input("Select a service group: ")
-                if sub_choice == "9":
+                if sub_choice == "q":
                     break
                 
                 services = SERVICE_GROUPS.get(sub_choice)
@@ -232,15 +240,15 @@ def main():
                     continue
                 
                 if main_choice == "1":
-                    run_service_parallel(target_servers_for_service, services, sudo_password)
+                    run_service_parallel(target_servers_for_service, services, sudo_password, max_workers=MAX_WORKERS_SALT_UPDATE)
                 elif main_choice == "2":
-                    run_service_parallel(target_servers_for_service, services, sudo_password, docker_restart_only=True)
+                    run_service_parallel(target_servers_for_service, services, sudo_password, docker_restart_only=True, max_workers=MAX_WORKERS_DOCKER_RESTART)
                 break
         
         elif main_choice == "3":
             print("\n------ Select Target Cells for PNP Reset ------")
-            selected = input("Enter cell numbers to reset PNP (e.g., 12347, 0 for all, 9 to go back): ")
-            if selected == '9':
+            selected = input("Enter cell numbers to reset PNP (e.g., 12347, 0 for all, q to go back): ")
+            if selected == 'q':
                 continue
 
             target_servers_for_reset = get_target_servers(selected, servers)
@@ -248,7 +256,7 @@ def main():
                 print("[ERROR] No target servers selected or invalid input.")
             else:
                 print(f"Executing PNP reset on cells: {[s['id'] for s in target_servers_for_reset]}")
-                run_pnp_reset_parallel(target_servers_for_reset)
+                run_pnp_reset_parallel(target_servers_for_reset, max_workers=MAX_WORKERS_PNP_RESET)
         
         else:
             print("[ERROR] Invalid option selected.")
