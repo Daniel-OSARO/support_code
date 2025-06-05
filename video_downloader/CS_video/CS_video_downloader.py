@@ -145,7 +145,7 @@ def get_video(nvrname, start_time, end_time, vid_name, target_folder_path, chann
     if not nvrname:
         print_error("Invalid NVR address provided to get_video. Skipping download.")
         # Optionally write to failed log here if invoice number is available/passed
-        return
+        return False # Modified to return boolean
     
     # Ensure the target directory exists before downloading
     try:
@@ -158,7 +158,7 @@ def get_video(nvrname, start_time, end_time, vid_name, target_folder_path, chann
                 with open(failed_downloads_file, 'a') as f: f.write(f"{vid_name}\n")
             except IOError as ioe:
                  print_error(f"Could not write to failed downloads file {failed_downloads_file}: {ioe}")
-        return
+        return False # Modified to return boolean
 
     url = f"http://{nvrname}/cgi-bin/loadfile.cgi?action=startLoad&channel={channel}&startTime={start_time}&endTime={end_time}"
     username = "admin"
@@ -192,12 +192,7 @@ def get_video(nvrname, start_time, end_time, vid_name, target_folder_path, chann
                              print_error(f"Could not write to failed downloads file {failed_downloads_file}: {ioe}")
                 else:
                     print_success(f"Download complete: {file_path}") # Use success print
-                    if downloaded_log_file:
-                        try:
-                            with open(downloaded_log_file, 'a') as log_f:
-                                log_f.write(f"{vid_name}\n")
-                        except IOError as ioe:
-                             print_error(f"Could not write to downloaded log file {downloaded_log_file}: {ioe}")
+                    return True # Modified to return boolean
             else:
                 print_error(f"Error {response.status_code} downloading {vid_name}: {response.text}")
                 if failed_downloads_file:
@@ -206,6 +201,7 @@ def get_video(nvrname, start_time, end_time, vid_name, target_folder_path, chann
                             f.write(f"{vid_name}\n")
                     except IOError as ioe:
                         print_error(f"Could not write to failed downloads file {failed_downloads_file}: {ioe}")
+                return False # Modified to return boolean
     except requests.exceptions.Timeout:
         print_error(f"Timeout occurred while downloading {vid_name} from {nvrname}")
         if failed_downloads_file:
@@ -213,6 +209,7 @@ def get_video(nvrname, start_time, end_time, vid_name, target_folder_path, chann
                 with open(failed_downloads_file, 'a') as f: f.write(f"{vid_name}\n")
             except IOError as ioe:
                 print_error(f"Could not write to failed downloads file {failed_downloads_file}: {ioe}")
+        return False # Modified to return boolean
     except requests.exceptions.RequestException as e:
         print_error(f"An error occurred during download request for {vid_name}: {e}")
         if failed_downloads_file:
@@ -220,6 +217,7 @@ def get_video(nvrname, start_time, end_time, vid_name, target_folder_path, chann
                 with open(failed_downloads_file, 'a') as f: f.write(f"{vid_name}\n")
             except IOError as ioe:
                 print_error(f"Could not write to failed downloads file {failed_downloads_file}: {ioe}")
+        return False # Modified to return boolean
     except Exception as e:
         print_error(f"An unexpected error occurred during download/saving of {vid_name}: {e}")
         if failed_downloads_file:
@@ -227,6 +225,8 @@ def get_video(nvrname, start_time, end_time, vid_name, target_folder_path, chann
                 with open(failed_downloads_file, 'a') as f: f.write(f"{vid_name}\n")
             except IOError as ioe:
                  print_error(f"Could not write to failed downloads file {failed_downloads_file}: {ioe}")
+        return False # Modified to return boolean
+    return False # Default return if no other path is taken
 
 # --- Helper function to count lines in a file safely ---
 def count_lines_in_file(filepath):
@@ -393,8 +393,12 @@ def menu1_download_dav():
                         # Try second format: %Y.%m.%d %H:%M:%S
                         shippedat_obj = datetime.strptime(shippedat_str, '%Y.%m.%d %H:%M:%S')
                     except ValueError:
-                        print_error(f"Error: Invalid shippedat format: {shippedat_str}")
-                        exit(1)
+                        try:
+                            # Try third format: %m/%d/%y %H:%M:%S (e.g., 5/8/25 20:39:50)
+                            shippedat_obj = datetime.strptime(shippedat_str, '%m/%d/%y %H:%M:%S')
+                        except ValueError:
+                            print_error(f"Error: Invalid shippedat format: {shippedat_str}")
+                            exit(1)
                 
                 shippedat_obj = shippedat_obj - timedelta(hours=9)
                 start_time = shippedat_obj - timedelta(seconds=30)
@@ -444,27 +448,16 @@ def menu2_download_dav_using_logs():
             print_error("Invalid channel number")
 
     csv_file_path = os.path.join(os.path.dirname(__file__), csv_file)
-    folder_name = f"{os.path.splitext(os.path.basename(csv_file))[0]}_log_time_ch{channel}" # Distinguish folder
-    failed_downloads_file = f"{folder_name}_failed_downloads.txt"
-    unfound_timestamps_file = f"{folder_name}_unfound_timestamps.txt" # File for unfound invoices
-    project_id = "osaro-logging" # Assuming this project ID
+    csv_base_name = os.path.splitext(os.path.basename(csv_file))[0] # Moved up for use in log file names
+    
+    # Use base_dir for log files, incorporating csv_base_name and channel for clarity
     base_dir = os.path.dirname(csv_file_path) # Directory containing the CSV
-    csv_base_name = os.path.splitext(os.path.basename(csv_file))[0]
-    # --- Add downloaded log file --- 
-    downloaded_log_file = os.path.join(base_dir, f"{csv_base_name}_downloaded.txt")
-    # --- End add downloaded log file ---
-
-    if os.path.exists(failed_downloads_file):
-        os.remove(failed_downloads_file)
-    if os.path.exists(unfound_timestamps_file):
-        os.remove(unfound_timestamps_file) # Clear previous unfound file
-    # --- Clear downloaded log file --- 
-    if os.path.exists(downloaded_log_file):
-        os.remove(downloaded_log_file)
-    # --- End clear downloaded log file ---
+    failed_downloads_file = os.path.join(base_dir, f"{csv_base_name}_ch{channel}_failed_downloads.txt")
+    unfound_timestamps_file = os.path.join(base_dir, f"{csv_base_name}_ch{channel}_unfound_timestamps.txt")
+    project_id = "osaro-logging" # Assuming this project ID
 
     print_info(f"\nProcessing CSV file: {csv_file}")
-    print_info(f"Creating folder: {folder_name}")
+    print_info(f"Creating folder: {csv_base_name}_ch{channel}_dav")
     print_info(f"Selected channel: {channel}")
     print_info("Will use BigQuery Logs to find precise timestamps.")
 
@@ -487,9 +480,9 @@ def menu2_download_dav_using_logs():
         else:
             print_warning("Column 'return_reason_group' not found in CSV.")
             while True:
-                choice = input(f"{Fore.YELLOW}Download all videos into a single folder '{csv_base_name}_all'? (yes/no): {Style.RESET_ALL}").strip().lower()
+                choice = input(f"{Fore.YELLOW}Download all videos into a single folder '{csv_base_name}_all_ch{channel}_dav'? (yes/no): {Style.RESET_ALL}").strip().lower()
                 if choice == 'yes':
-                    single_target_folder = os.path.join(base_dir, f"{csv_base_name}_all")
+                    single_target_folder = os.path.join(base_dir, f"{csv_base_name}_all_ch{channel}_dav")
                     print_info(f"Will download all files to: {single_target_folder}")
                     create_folder(single_target_folder) # Create the single folder immediately
                     break
@@ -596,6 +589,7 @@ def menu2_download_dav_using_logs():
     download_tasks = []
     processed_invoices = set() # Track invoices for which downloads are initiated
     unfound_invoices = [] # List to store invoices without timestamps
+    successful_downloads_count = 0 # Counter for successful downloads
 
     with ThreadPoolExecutor(max_workers=4) as download_executor:
         for row_data in all_rows_data:
@@ -626,9 +620,12 @@ def menu2_download_dav_using_logs():
                     
                     # Include CSV file name in the subfolder
                     prefix = csv_base_name
-                    subfolder_name = f"{prefix}_{subfolder_name}"
+                    # subfolder_name = f"{prefix}_{subfolder_name}" # Original subfolder name
+                    # target_folder_path = os.path.join(base_dir, subfolder_name)
                     
-                    target_folder_path = os.path.join(base_dir, subfolder_name)
+                    # New subfolder name including channel and _dav suffix
+                    target_subfolder_name = f"{prefix}_{subfolder_name}_ch{channel}_dav"
+                    target_folder_path = os.path.join(base_dir, target_subfolder_name)
                 # --- End Determine Target Folder ---
                     
                 # Calculate download start/end times (existing logic)
@@ -655,7 +652,7 @@ def menu2_download_dav_using_logs():
                 # Pass the determined target_folder_path and downloaded_log_file to get_video
                 future = download_executor.submit(get_video, nvr_address, start_time_str, end_time_str,
                                                 vid_name, target_folder_path, channel, 
-                                                failed_downloads_file, downloaded_log_file)
+                                                failed_downloads_file)
                 download_tasks.append(future)
                 processed_invoices.add(invoice_number)
 
@@ -663,9 +660,15 @@ def menu2_download_dav_using_logs():
                 print_warning(f"No timestamp found in logs for invoice {invoice_number}. Skipping download.")
                 unfound_invoices.append(invoice_number) # Add to unfound list
 
-        # Wait for all downloads to complete
+        # Wait for all downloads to complete and count successes
         for future in download_tasks:
-            future.result()
+            try:
+                if future.result() is True: # Check return value from get_video
+                    successful_downloads_count += 1
+            except Exception as e:
+                # This exception could be from the executor or a severe one from get_video not returning False
+                # Failures handled by get_video (returning False) are already logged to failed_downloads_file
+                print_error(f"An error occurred processing a download future: {e}")
 
     # Step 4: Write unfound invoices to a file
     if unfound_invoices:
@@ -687,18 +690,17 @@ def menu2_download_dav_using_logs():
     total_csv_rows = len(all_rows_data)
     unique_invoices_in_csv = len(set(item['invoice_number'] for item in all_rows_data))
     
-    successful_downloads = count_lines_in_file(downloaded_log_file)
     timestamps_not_found = count_lines_in_file(unfound_timestamps_file)
     download_failures = count_lines_in_file(failed_downloads_file)
     
     print_info(f"Total rows processed from CSV: {total_csv_rows}")
     print_info(f"Unique invoice numbers in CSV: {unique_invoices_in_csv}")
-    print_success(f"Successful downloads: {successful_downloads}")
+    print_success(f"Successful downloads: {successful_downloads_count}")
     print_warning(f"Timestamps not found in logs: {timestamps_not_found}")
     print_error(f"Download failures (NVR/Network issues): {download_failures}")
     
     # Check if counts match unique invoices
-    total_accounted = successful_downloads + timestamps_not_found + download_failures
+    total_accounted = successful_downloads_count + timestamps_not_found + download_failures
     if total_accounted == unique_invoices_in_csv:
         print_info("Counts match unique invoices processed.")
     else:
@@ -714,14 +716,19 @@ def menu2_convert_to_mp4():
     
     dav_folder_path = os.path.join(os.path.dirname(__file__), dav_folder)
     
-    if dav_folder.endswith("_dav"):
-        base_folder_name = dav_folder[:-4] # Remove '_dav'
+    # Determine mp4_folder name based on dav_folder structure
+    # Handles cases like "..._chX_dav" -> "..._chX_mp4"
+    if dav_folder.endswith("_dav") and "_ch" in dav_folder:
+        mp4_folder = dav_folder.replace("_dav", "_mp4")
+    elif dav_folder.endswith("_dav"): # Fallback for simple _dav suffix from menu1 original style
+        base_folder_name = dav_folder[:-4]
         mp4_folder = f"{base_folder_name}_mp4"
     else:
-        # Check if folder name contains "_ch" followed by a number
+        # Default fallback if a more specific pattern (like menu2 generated ones) isn't matched
+        # This handles older folder names or unexpected structures by appending _mp4
+        # For menu2, after the changes, dav_folder should end with _chX_dav
         ch_match = re.search(r'_ch\d+', dav_folder)
         if ch_match:
-            # Keep the channel info in the mp4 folder name
             channel_part = ch_match.group(0)
             base_name = dav_folder.replace(channel_part, '')
             mp4_folder = f"{base_name}{channel_part}_mp4"
