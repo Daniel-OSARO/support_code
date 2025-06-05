@@ -155,10 +155,9 @@ def get_video(nvrname, start_time, end_time, vid_name, target_folder_path, chann
         # Log failure if possible
         if failed_downloads_file:
             try:
-                invoice_number = vid_name.split('_')[0] 
-                with open(failed_downloads_file, 'a') as f: f.write(f"{invoice_number}\n")
-            except IndexError:
-                 print_warning(f"Could not extract invoice number from {vid_name} for failure log.")
+                with open(failed_downloads_file, 'a') as f: f.write(f"{vid_name}\n")
+            except IOError as ioe:
+                 print_error(f"Could not write to failed downloads file {failed_downloads_file}: {ioe}")
         return
 
     url = f"http://{nvrname}/cgi-bin/loadfile.cgi?action=startLoad&channel={channel}&startTime={start_time}&endTime={end_time}"
@@ -187,43 +186,47 @@ def get_video(nvrname, start_time, end_time, vid_name, target_folder_path, chann
                 if file_size != 0 and progress_bar.n != file_size:
                     print_warning(f"Download incomplete for {vid_name}. Expected {file_size}, got {progress_bar.n}")
                     if failed_downloads_file:
-                         invoice_number = vid_name.split('_')[0]
-                         with open(failed_downloads_file, 'a') as f: f.write(f"{invoice_number}\n")
+                         try:
+                             with open(failed_downloads_file, 'a') as f: f.write(f"{vid_name}\n")
+                         except IOError as ioe:
+                             print_error(f"Could not write to failed downloads file {failed_downloads_file}: {ioe}")
                 else:
                     print_success(f"Download complete: {file_path}") # Use success print
                     if downloaded_log_file:
                         try:
-                            invoice_number = vid_name.split('_')[0] 
                             with open(downloaded_log_file, 'a') as log_f:
-                                log_f.write(f"{invoice_number}\n")
-                        except IndexError:
-                            print_warning(f"Could not extract invoice number from {vid_name} for downloaded log.")
-                        except IOError as e:
-                             print_error(f"Could not write to downloaded log file {downloaded_log_file}: {e}")
+                                log_f.write(f"{vid_name}\n")
+                        except IOError as ioe:
+                             print_error(f"Could not write to downloaded log file {downloaded_log_file}: {ioe}")
             else:
                 print_error(f"Error {response.status_code} downloading {vid_name}: {response.text}")
                 if failed_downloads_file:
-                    invoice_number = vid_name.split('_')[0]
-                    with open(failed_downloads_file, 'a') as f:
-                        f.write(f"{invoice_number}\n")
+                    try:
+                        with open(failed_downloads_file, 'a') as f:
+                            f.write(f"{vid_name}\n")
+                    except IOError as ioe:
+                        print_error(f"Could not write to failed downloads file {failed_downloads_file}: {ioe}")
     except requests.exceptions.Timeout:
         print_error(f"Timeout occurred while downloading {vid_name} from {nvrname}")
         if failed_downloads_file:
-            invoice_number = vid_name.split('_')[0]
-            with open(failed_downloads_file, 'a') as f: f.write(f"{invoice_number}\n")
+            try:
+                with open(failed_downloads_file, 'a') as f: f.write(f"{vid_name}\n")
+            except IOError as ioe:
+                print_error(f"Could not write to failed downloads file {failed_downloads_file}: {ioe}")
     except requests.exceptions.RequestException as e:
         print_error(f"An error occurred during download request for {vid_name}: {e}")
         if failed_downloads_file:
-            invoice_number = vid_name.split('_')[0]
-            with open(failed_downloads_file, 'a') as f: f.write(f"{invoice_number}\n")
+            try:
+                with open(failed_downloads_file, 'a') as f: f.write(f"{vid_name}\n")
+            except IOError as ioe:
+                print_error(f"Could not write to failed downloads file {failed_downloads_file}: {ioe}")
     except Exception as e:
         print_error(f"An unexpected error occurred during download/saving of {vid_name}: {e}")
         if failed_downloads_file:
             try:
-                invoice_number = vid_name.split('_')[0] 
-                with open(failed_downloads_file, 'a') as f: f.write(f"{invoice_number}\n")
-            except IndexError:
-                 print_warning(f"Could not extract invoice number from {vid_name} for unexpected error log.")
+                with open(failed_downloads_file, 'a') as f: f.write(f"{vid_name}\n")
+            except IOError as ioe:
+                 print_error(f"Could not write to failed downloads file {failed_downloads_file}: {ioe}")
 
 # --- Helper function to count lines in a file safely ---
 def count_lines_in_file(filepath):
@@ -259,6 +262,7 @@ def print_menu():
     print(f"{Fore.CYAN}{'='*50}")
     print(f"{Fore.GREEN}1. Download DAV files from CSV (using shippedat)")
     print(f"{Fore.MAGENTA}2. Download DAV files from CSV (using BigQuery for timestamp)")
+    print(f"{Fore.YELLOW}3. PS data - extract cell num")
     print(f"{Fore.BLUE}c. Convert DAV files to MP4")
     print(f"{Fore.RED}Enter 'q' to exit")
     print(f"{Fore.CYAN}{'='*50}{Style.RESET_ALL}")
@@ -644,7 +648,7 @@ def menu2_download_dav_using_logs():
                 if not nvr_address:
                     print_error(f"Error: Unknown NVR address for {worker_id}. Skipping invoice {invoice_number}")
                     if failed_downloads_file:
-                         with open(failed_downloads_file, 'a') as f: f.write(f"{invoice_number}\n")
+                         with open(failed_downloads_file, 'a') as f: f.write(f"{vid_name}\n")
                     continue
 
                 print_info(f"Queueing download for {invoice_number} ({vid_name}) to {target_folder_path} using log timestamp {timestamp_dt}")
@@ -746,10 +750,247 @@ def menu2_convert_to_mp4():
     
     print_success("\nConversion process completed!")
 
+# --- Helper functions for Menu 3: PS data extraction ---
+def get_ps_data_log_time_range(ps_issue_date_str):
+    """Calculates the UTC start and end time strings for log querying based on PS_issue_date.
+    The range is from the previous day 23:00 UTC to the PS_issue_date 19:00 UTC.
+    """
+    try:
+        # Assuming ps_issue_date_str is in "MM/DD/YY" or "MM/DD/YYYY" format
+        if len(ps_issue_date_str.split('/')[-1]) == 2: # YY format
+            date_obj = datetime.strptime(ps_issue_date_str, '%m/%d/%y').date()
+        else: # YYYY format
+            date_obj = datetime.strptime(ps_issue_date_str, '%m/%d/%Y').date()
+    except ValueError as e:
+        print_error(f"Invalid PS_issue_date format: {ps_issue_date_str}. Error: {e}")
+        return None, None
+
+    # Previous day 23:00 UTC
+    start_time_dt = datetime(date_obj.year, date_obj.month, date_obj.day, 0, 0, 0, tzinfo=timezone.utc) - timedelta(days=1) + timedelta(hours=23)
+    # PS_issue_date 19:00 UTC
+    end_time_dt = datetime(date_obj.year, date_obj.month, date_obj.day, 19, 0, 0, tzinfo=timezone.utc)
+
+    start_time_str = start_time_dt.strftime('%Y-%m-%dT%H:%M:%SZ')
+    end_time_str = end_time_dt.strftime('%Y-%m-%dT%H:%M:%SZ')
+    return start_time_str, end_time_str
+
+def build_ps_data_log_query(start_time_str, end_time_str, tote_id, barcode_from_csv):
+    """Builds the filter string for the Cloud Logging API for PS data extraction."""
+    query_parts = [
+        f'timestamp >= "{start_time_str}"',
+        f'timestamp <= "{end_time_str}"',
+        'jsonPayload.hostname =~ "cpg-ech02-[1-7]"',
+        'jsonPayload.app_name:"pnp"',  # Consistent with GCP standards
+        'severity>="INFO"',  # Consistent with GCP standards
+        f'"{tote_id}"',  # Search for tote_id in logs
+        '"tote not empty despite empty bin, releasing anyway"'  # Specific message search
+    ]
+    # Add barcode search condition only if barcode_from_csv has a value
+    if barcode_from_csv and barcode_from_csv.strip():
+        query_parts.append(f'"{barcode_from_csv}"')
+
+    return " AND ".join(query_parts)
+
+# --- End Helper functions for Menu 3 ---
+
+# --- New function for menu 3 ---
+def menu3_extract_ps_data():
+    """
+    Extracts cell number (hostname) and timestamp for totes from CSV,
+    queries Google Cloud Logging, and saves the results.
+    """
+    print_info("Starting PS data extraction...")
+    csv_file = select_csv_file()
+    if not csv_file:
+        return
+
+    csv_file_path = os.path.join(os.path.dirname(__file__), csv_file)
+    base_name = os.path.splitext(os.path.basename(csv_file))[0]
+
+    total_data_file = os.path.join(os.path.dirname(__file__), f"{base_name}_total_data.txt")
+    # cell_only_file = os.path.join(os.path.dirname(__file__), f"{base_name}_cell_only.txt")
+    failed_file = os.path.join(os.path.dirname(__file__), f"{base_name}_failed.txt")
+
+    # for f_path in [total_data_file, cell_only_file, failed_file]:
+    #     if os.path.exists(f_path):
+    #         os.remove(f_path)
+
+    print_info(f"Processing CSV file: {csv_file}")
+    print_info(f"Results will be saved to:")
+    print_info(f"  Total data: {total_data_file}")
+    # print_info(f"  Cell only: {cell_only_file}")
+    print_info(f"  Failed totes: {failed_file}")
+
+    found_totes_info = []
+    failed_totes_list = []
+    all_hostnames = []
+    project_id = "osaro-logging"
+    client = None
+    csv_header_read_ok = False
+    rows_processed_count = 0
+
+    try:
+        # Initialize client once
+        try:
+            client = cloud_logging.Client(project=project_id)
+            print_info("Cloud Logging client initialized successfully.")
+        except Exception as e:
+            print_error(f"Failed to create Cloud Logging client: {e}. Log queries will be skipped.")
+            # client remains None, downstream logic will handle this
+
+        with open(csv_file_path, mode='r', encoding='utf-8-sig') as file:
+            reader = csv.DictReader(file)
+            if not reader.fieldnames:
+                print_error(f"CSV file {csv_file} is empty or has no header.")
+                # csv_header_read_ok remains False
+            else:
+                csv_header_read_ok = True
+                fieldnames_lower = [name.lower() for name in reader.fieldnames]
+                tote_col_name, ps_issue_date_col_name, barcode_col_name = None, None, None
+                possible_tote_cols = ["tote", "tote_barcode", "toteid"]
+                possible_ps_date_cols = ["ps_issue_date", "ps issuedate", "ps_date"]
+                possible_barcode_cols = ["barcode", "item_barcode", "product_barcode"]
+
+                for original_name, lower_name in zip(reader.fieldnames, fieldnames_lower):
+                    if not tote_col_name and lower_name in possible_tote_cols: tote_col_name = original_name
+                    if not ps_issue_date_col_name and lower_name in possible_ps_date_cols: ps_issue_date_col_name = original_name
+                    if not barcode_col_name and lower_name in possible_barcode_cols: barcode_col_name = original_name
+                
+                if not tote_col_name: print_error(f"Required 'tote' column not found in {csv_file}. Skipping log queries."); csv_header_read_ok = False
+                if not ps_issue_date_col_name: print_error(f"Required 'PS_issue_date' column not found in {csv_file}. Skipping log queries."); csv_header_read_ok = False
+                if not barcode_col_name: print_warning(f"'barcode' column not found in {csv_file}. File names will use tote ID instead of product barcode.")
+
+                if csv_header_read_ok:
+                    print_info(f"Using columns: Tote='{tote_col_name}', PS_Issue_Date='{ps_issue_date_col_name}', Barcode='{barcode_col_name if barcode_col_name else 'N/A'}'")
+                    
+                    # Read all rows to get total count for progress display
+                    all_csv_rows = list(reader) # reader is already initialized
+                    total_rows_in_csv = len(all_csv_rows)
+
+                    if total_rows_in_csv == 0:
+                        print_info("CSV file has headers but no data rows.")
+                        # csv_header_read_ok remains true, but rows_processed_count will be 0
+                    else:
+                        print_info(f"Total data rows to process: {total_rows_in_csv}")
+
+                    for row_num, row in enumerate(all_csv_rows, 1):
+                        rows_processed_count +=1
+                        
+                        # Display progress
+                        if total_rows_in_csv > 0:
+                            progress_percentage = (rows_processed_count / total_rows_in_csv) * 100
+                            print_info(f"Processing row {rows_processed_count}/{total_rows_in_csv} ({progress_percentage:.2f}%)... Tote: {row.get(tote_col_name)}")
+
+                        tote_id = row.get(tote_col_name)
+                        ps_issue_date_str = row.get(ps_issue_date_col_name)
+                        barcode_val = row.get(barcode_col_name, "") if barcode_col_name else ""
+
+                        if not tote_id or not ps_issue_date_str:
+                            msg = f"Skipping row {row_num}: missing tote ID ('{tote_id}') or PS issue date ('{ps_issue_date_str}')."
+                            print_warning(msg)
+                            if tote_id: failed_totes_list.append(tote_id)
+                            continue
+
+                        start_time_str, end_time_str = get_ps_data_log_time_range(ps_issue_date_str)
+                        if not start_time_str or not end_time_str:
+                            print_warning(f"Skipping tote {tote_id} due to invalid PS issue date: {ps_issue_date_str}")
+                            failed_totes_list.append(tote_id)
+                            continue
+                        
+                        if not client: # If client initialization failed earlier
+                            if tote_id not in failed_totes_list: failed_totes_list.append(tote_id)
+                            print_warning(f"Skipping log query for {tote_id} as Cloud client is not available.")
+                            continue # Skip to next row
+
+                        log_filter = build_ps_data_log_query(start_time_str, end_time_str, tote_id, barcode_val)
+                        print_info(f"Querying for tote: {tote_id}, Barcode: {barcode_val if barcode_val else 'N/A'}, Date: {ps_issue_date_str}, TimeRange: {start_time_str} to {end_time_str}")
+                        
+                        found_for_tote = False
+                        try:
+                            entries = client.list_entries(filter_=log_filter, order_by=cloud_logging.DESCENDING)
+                            for entry in entries:
+                                payload = entry.json_payload if hasattr(entry, 'json_payload') and entry.json_payload else entry.payload
+                                hostname_log = payload.get('hostname')
+                                if not hostname_log and hasattr(entry, 'resource') and entry.resource and hasattr(entry.resource, 'labels'):
+                                    hostname_log = entry.resource.labels.get('instance_id')
+                                    if not hostname_log:
+                                         hostname_log = entry.resource.labels.get('pod_name') or entry.resource.labels.get('container_name')
+                                
+                                timestamp_log_dt = entry.timestamp
+                                timestamp_log_str = timestamp_log_dt.isoformat()
+
+                                if hostname_log and timestamp_log_str:
+                                    file_barcode_part = barcode_val if barcode_val else tote_id
+                                    found_totes_info.append((tote_id, file_barcode_part, hostname_log, timestamp_log_str))
+                                    all_hostnames.append(hostname_log)
+                                    print_success(f"Found log for {tote_id}: Host={hostname_log}, Time={timestamp_log_str}")
+                                    found_for_tote = True
+                                    break 
+                            
+                            if not found_for_tote:
+                                print_warning(f"No matching log entry found for tote: {tote_id}") # Filter already printed
+                                failed_totes_list.append(tote_id)
+
+                        except Exception as e:
+                            print_error(f"Error querying logs for tote {tote_id}: {e}")
+                            if tote_id not in failed_totes_list: failed_totes_list.append(tote_id)
+    
+    except FileNotFoundError:
+        print_error(f"CSV file {csv_file_path} not found.")
+        csv_header_read_ok = False # Ensure this is false if file not found
+    except Exception as e:
+        print_error(f"An error occurred while processing {csv_file}: {e}")
+        csv_header_read_ok = False # Ensure this is false on other critical errors during open/read setup
+
+    # --- Writing results to files ---
+    if found_totes_info:
+        try:
+            with open(total_data_file, 'w', encoding='utf-8') as f_total:
+                for original_tote_id, item_bc, hname, ts_str in found_totes_info:
+                    timestamp_formatted = ""
+                    try:
+                        dt_obj = datetime.fromisoformat(ts_str.replace('Z', '+00:00'))
+                        timestamp_formatted = dt_obj.strftime('%Y%m%d_%H%M%S')
+                    except ValueError:
+                        timestamp_formatted = ts_str 
+                    print(f"{original_tote_id}_{item_bc}_{hname}_{timestamp_formatted}", file=f_total)
+            print_success(f"Successfully wrote {len(found_totes_info)} entries to {total_data_file}")
+        except IOError as e:
+            print_error(f"Could not write to total data file {total_data_file}: {e}")
+
+        try:
+            with open(cell_only_file, 'w', encoding='utf-8') as f_cell:
+                for hname in all_hostnames:
+                    print(hname, file=f_cell)
+            print_success(f"Successfully wrote {len(all_hostnames)} hostnames to {cell_only_file}")
+        except IOError as e:
+            print_error(f"Could not write to cell only file {cell_only_file}: {e}")
+    
+    final_failed_totes = sorted(list(set(failed_totes_list)))
+    if final_failed_totes:
+        try:
+            with open(failed_file, 'w', encoding='utf-8') as f_failed:
+                for tote_id_failed in final_failed_totes:
+                    print(tote_id_failed, file=f_failed)
+            print_warning(f"{len(final_failed_totes)} unique totes failed or not found. Details in {failed_file}")
+        except IOError as e:
+            print_error(f"Could not write to failed totes file {failed_file}: {e}")
+    
+    # --- Final Summary Messages ---
+    if not csv_header_read_ok:
+        print_error("PS data extraction could not proceed due to CSV reading issues (file not found, empty, or missing required headers).")
+    elif rows_processed_count == 0 and csv_header_read_ok: # This condition implies total_rows_in_csv was 0 or became 0.
+        print_info("CSV file was processed (headers found), but it contained no data rows to analyze.")
+    else: # CSV was processed and had rows
+        if not found_totes_info and not final_failed_totes and rows_processed_count > 0:
+             print_info(f"Processing complete for {rows_processed_count} row(s). No logs found for any totes, and no errors occurred during log querying.")
+        else:
+            print_info("PS data extraction process finished.") # General completion if there were mixes of success/failure
+
 def main():
     while True:
         print_menu()
-        choice = input(f"{Fore.CYAN}Select menu (1-2, c or 'q'): {Style.RESET_ALL}").strip().lower()
+        choice = input(f"{Fore.CYAN}Select menu (1-3, c or 'q'): {Style.RESET_ALL}").strip().lower()
         
         if choice == 'q':
             print_info("Exiting program...")
@@ -760,6 +1001,8 @@ def main():
             menu2_download_dav_using_logs()
         elif choice == "c":
             menu2_convert_to_mp4()
+        elif choice == "3":
+            menu3_extract_ps_data()
         else:
             print_error("Invalid selection. Please try again.")
 
